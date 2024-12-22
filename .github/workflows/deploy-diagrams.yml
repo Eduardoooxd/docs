@@ -16,7 +16,7 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    container: ghcr.io/aidmax/structurizr-cli-docker:latest
+    container: ghcr.io/sebastienfi/structurizr-cli-with-bonus:latest
     steps:
       - uses: actions/checkout@v3
 
