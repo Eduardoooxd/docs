@@ -7,12 +7,6 @@ on:
     branches:
       - main
 
-env:
-  STRUCTURIZR_URL: ${{ secrets.STRUCTURIZR_URL }}
-  STRUCTURIZR_WORKSPACE_ID: ${{ secrets.STRUCTURIZR_WORKSPACE_ID }}
-  STRUCTURIZR_API_KEY: ${{ secrets.STRUCTURIZR_API_KEY }}
-  STRUCTURIZR_API_SECRET: ${{ secrets.STRUCTURIZR_API_SECRET }}
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -26,12 +20,11 @@ jobs:
         run: |
           echo "files=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep '\.dsl$' | tr '\n' ' ')" >> $GITHUB_OUTPUT
 
-      - name: Push to Structurizr
-        uses: gilbertotcc/structurizr-action@v1
-        env:
-          STRUCTURIZR_WORKSPACE_ID: ${{ secrets.STRUCTURIZR_WORKSPACE_ID }}
-          STRUCTURIZR_API_KEY: ${{ secrets.STRUCTURIZR_API_KEY }}
-          STRUCTURIZR_API_SECRET: ${{ secrets.STRUCTURIZR_API_SECRET }}
-          STRUCTURIZR_URL: ${{ secrets.STRUCTURIZR_URL }}
+      - name: Run structurizr-cli action
+        uses: aidmax/structurizr-cli-action@v1
         with:
-          args: "push -workspace ${{ steps.changed-files.outputs.files }}"
+          id: ${{ secrets.STRUCTURIZR_WORKSPACE_ID }}
+          key: ${{ secrets.STRUCTURIZR_API_KEY }}
+          secret: ${{ secrets.STRUCTURIZR_API_SECRET }}
+          workspace: ${{ steps.changed-files.outputs.files }}
+          url: ${{ secrets.STRUCTURIZR_URL }}
