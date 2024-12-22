@@ -1,0 +1,41 @@
+name: Validate Structurizr DSL
+
+on:
+  pull_request:
+    paths:
+      - "**.dsl"
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    container: ghcr.io/sebastienfi/structurizr-cli-with-bonus:latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Get changed DSL files
+        id: changed-files
+        run: |
+          FILES=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} | grep '\.dsl$' || echo "")
+          echo "Files changed: $FILES"
+          echo "workspace=$FILES" >> $GITHUB_OUTPUT
+
+      - name: Validate DSL
+        run: |
+          for file in ${{ steps.changed-files.outputs.workspace }}; do
+            echo "Validating $file"
+            /usr/local/structurizr-cli/structurizr.sh validate -workspace "$file"
+          done
+
+      - uses: sebastienfi/structurizr-gen-images@v1
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          workspace-path: ${{ steps.changed-files.outputs.workspace }}
+          output-path: "docs/diagrams/"
