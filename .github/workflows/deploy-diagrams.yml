@@ -16,10 +16,9 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    container: ghcr.io/aidmax/structurizr-cli-docker:latest
     steps:
       - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
 
       - name: Set workspace from input
         id: input-workspace
@@ -35,11 +34,11 @@ jobs:
           echo "DSL files changed: $CHANGED_FILES"
           echo "workspace=$CHANGED_FILES" >> $GITHUB_OUTPUT
 
-      - name: Run structurizr-cli action
-        uses: aidmax/structurizr-cli-action@v1
-        with:
-          id: ${{ secrets.STRUCTURIZR_WORKSPACE_ID }}
-          key: ${{ secrets.STRUCTURIZR_API_KEY }}
-          secret: ${{ secrets.STRUCTURIZR_API_SECRET }}
-          workspace: ${{ steps.changed-files.outputs.workspace || steps.input-workspace.outputs.workspace }}
-          url: ${{ secrets.STRUCTURIZR_URL }}
+      - name: Push to Structurizr
+        run: |
+          structurizr.sh push \
+            -id ${{ secrets.STRUCTURIZR_WORKSPACE_ID }} \
+            -key ${{ secrets.STRUCTURIZR_API_KEY }} \
+            -secret ${{ secrets.STRUCTURIZR_API_SECRET }} \
+            -url ${{ secrets.STRUCTURIZR_URL }} \
+            -workspace ${{ steps.changed-files.outputs.workspace || steps.input-workspace.outputs.workspace }}
