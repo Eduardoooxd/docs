@@ -6,6 +6,7 @@ on:
       - "**.dsl"
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
   deploy:
@@ -26,5 +27,5 @@ jobs:
           id: ${{ secrets.STRUCTURIZR_WORKSPACE_ID }}
           key: ${{ secrets.STRUCTURIZR_API_KEY }}
           secret: ${{ secrets.STRUCTURIZR_API_SECRET }}
-          workspace: ${{ steps.changed-files.outputs.files }}
+          workspace: "structurizr/example-workspace.dsl"
           url: ${{ secrets.STRUCTURIZR_URL }}
