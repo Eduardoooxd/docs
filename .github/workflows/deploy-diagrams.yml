@@ -34,4 +34,4 @@ jobs:
           STRUCTURIZR_API_SECRET: ${{ secrets.STRUCTURIZR_API_SECRET }}
           STRUCTURIZR_URL: ${{ secrets.STRUCTURIZR_URL }}
         with:
-          args: 'push -workspace ${{ steps.changed-files.outputs.files || "./structurizr" }}'
+          args: "push -workspace ${{ steps.changed-files.outputs.files }}"
