@@ -7,6 +7,11 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      workspace:
+        required: true
+        description: "Path of workspace to deploy structurizr/<NAME_OF_FILE>.dsl"
+        type: string
 
 jobs:
   deploy:
@@ -16,10 +21,19 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Set workspace from input
+        id: input-workspace
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          echo "workspace=${{ github.event.inputs.workspace }}" >> $GITHUB_OUTPUT
+
       - name: Get changed DSL files
         id: changed-files
+        if: github.event_name == 'push'
         run: |
-          echo "files=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep '\.dsl$' | tr '\n' ' ')" >> $GITHUB_OUTPUT
+          CHANGED_FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep '\.dsl$' || echo "")
+          echo "DSL files changed: $CHANGED_FILES"
+          echo "workspace=$CHANGED_FILES" >> $GITHUB_OUTPUT
 
       - name: Run structurizr-cli action
         uses: aidmax/structurizr-cli-action@v1
@@ -27,5 +41,5 @@ jobs:
           id: ${{ secrets.STRUCTURIZR_WORKSPACE_ID }}
           key: ${{ secrets.STRUCTURIZR_API_KEY }}
           secret: ${{ secrets.STRUCTURIZR_API_SECRET }}
-          workspace: "structurizr/example-workspace.dsl"
+          workspace: ${{ steps.changed-files.outputs.workspace || steps.input-workspace.outputs.workspace }}
           url: ${{ secrets.STRUCTURIZR_URL }}
