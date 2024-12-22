@@ -15,7 +15,9 @@ jobs:
     runs-on: ubuntu-latest
     container: ghcr.io/sebastienfi/structurizr-cli-with-bonus:latest
     permissions:
-      contents: write
+      contents: read # Allow to work with the contents of the repository, including git pull.
+      issues: write # Allow to comment on pull requests.
+      pull-requests: write # Allow to list and create pr's comments.
 
     steps:
       - uses: actions/checkout@v3
@@ -23,9 +25,9 @@ jobs:
       - name: Get changed DSL files
         id: changed-files
         run: |
-          FILES=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} | grep '\.dsl$' || echo "")
-          echo "Files changed: $FILES"
-          echo "workspace=$FILES" >> $GITHUB_OUTPUT
+          CHANGED_FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep '\.dsl$' || echo "")
+          echo "DSL files changed: $CHANGED_FILES"
+          echo "workspace=$CHANGED_FILES" >> $GITHUB_OUTPUT
 
       - name: Validate DSL
         run: |
@@ -34,8 +36,7 @@ jobs:
             /usr/local/structurizr-cli/structurizr.sh validate -workspace "$file"
           done
 
-      - uses: sebastienfi/structurizr-gen-images@v1
+      - uses: sebastienfi/structurizr-pr-comment@v1
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-          workspace-path: ${{ steps.changed-files.outputs.workspace }}
           output-path: "docs/diagrams/"
