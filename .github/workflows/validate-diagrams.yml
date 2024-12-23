@@ -43,11 +43,74 @@ jobs:
             /usr/local/structurizr-cli/structurizr.sh validate -workspace "$file"
           done
 
-      - name: Create output Directory
+      - name: Generate Diagram Images
         run: |
-          mkdir -p docs/diagrams
+          mkdir -p diagrams
+          for file in ${{ steps.changed-files.outputs.workspace }}; do
+            echo "Generating diagrams for $file"
+            /usr/local/structurizr-cli/structurizr.sh export -workspace "$file" -format plantuml -output diagrams
+          done
+          cd diagrams
+          echo 'Generating PNGs...'
+          plantuml -tpng *.puml
 
-      - uses: sebastienfi/structurizr-pr-comment@v1
+      - name: Create PR Comment
+        uses: actions/github-script@v6
         with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          output-path: "docs/diagrams/"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            // Read all PNG files from diagrams directory
+            const diagramsDir = 'diagrams';
+            const files = fs.readdirSync(diagramsDir)
+              .filter(file => file.endsWith('.png'));
+
+            // Convert images to base64
+            const images = files.map(file => {
+              const filePath = path.join(diagramsDir, file);
+              const base64 = fs.readFileSync(filePath, 'base64');
+              return {
+                name: file.replace('.png', ''),
+                data: base64
+              };
+            });
+
+            // Create comment content
+            let comment = '### 🎨 Structurizr Diagram Updates\n\n';
+            comment += 'The following diagrams were updated in this PR:\n\n';
+
+            images.forEach(image => {
+              comment += `#### ${image.name}\n`;
+              comment += `![${image.name}](data:image/png;base64,${image.data})\n\n`;
+            });
+
+            // Find existing bot comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.name,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.find(comment => 
+              comment.user.type === 'Bot' && 
+              comment.body.includes('Structurizr Diagram Updates')
+            );
+
+            // Update or create comment
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.name,
+                comment_id: botComment.id,
+                body: comment
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.name,
+                issue_number: context.issue.number,
+                body: comment
+              });
+            }
