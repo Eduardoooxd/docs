@@ -87,10 +87,10 @@ jobs:
             });
 
             // Find existing bot comment
-            const { data: comments } = await github.rest.issues.listComments({
+            const { data: comments } = await github.rest.pulls.listReviewComments({
               owner: context.repo.owner,
               repo: context.repo.name,
-              issue_number: context.issue.number,
+              pull_number: context.issue.number,
             });
 
             const botComment = comments.find(comment => 
@@ -100,17 +100,20 @@ jobs:
 
             // Update or create comment
             if (botComment) {
-              await github.rest.issues.updateComment({
+              await github.rest.pulls.updateReviewComment({
                 owner: context.repo.owner,
                 repo: context.repo.name,
                 comment_id: botComment.id,
                 body: comment
               });
             } else {
-              await github.rest.issues.createComment({
+              await github.rest.pulls.createReviewComment({
                 owner: context.repo.owner,
                 repo: context.repo.name,
-                issue_number: context.issue.number,
-                body: comment
+                pull_number: context.issue.number,
+                body: comment,
+                commit_id: context.payload.pull_request.head.sha,
+                path: ${{ steps.changed-files.outputs.workspace }},
+                position: 1
               });
             }
