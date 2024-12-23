@@ -62,58 +62,82 @@ jobs:
             const fs = require('fs');
             const path = require('path');
 
-            // Read all PNG files from diagrams directory
-            const diagramsDir = 'diagrams';
-            const files = fs.readdirSync(diagramsDir)
-              .filter(file => file.endsWith('.png'));
-
-            // Convert images to base64
-            const images = files.map(file => {
-              const filePath = path.join(diagramsDir, file);
-              const base64 = fs.readFileSync(filePath, 'base64');
-              return {
-                name: file.replace('.png', ''),
-                data: base64
-              };
-            });
-
-            // Create comment content
-            let comment = '### 🎨 Structurizr Diagram Updates\n\n';
-            comment += 'The following diagrams were updated in this PR:\n\n';
-
-            images.forEach(image => {
-              comment += `#### ${image.name}\n`;
-              comment += `![${image.name}](data:image/png;base64,${image.data})\n\n`;
-            });
-
-            // Find existing bot comment
-            const { data: comments } = await github.rest.pulls.listReviewComments({
-              owner: context.repo.owner,
-              repo: context.repo.name,
-              pull_number: context.issue.number,
-            });
-
-            const botComment = comments.find(comment => 
-              comment.user.type === 'Bot' && 
-              comment.body.includes('Structurizr Diagram Updates')
-            );
-
-            // Update or create comment
-            if (botComment) {
-              await github.rest.pulls.updateReviewComment({
-                owner: context.repo.owner,
-                repo: context.repo.name,
-                comment_id: botComment.id,
-                body: comment
+            try {
+              // Read all PNG files from diagrams directory
+              const diagramsDir = 'diagrams';
+              if (!fs.existsSync(diagramsDir)) {
+                console.log('No diagrams directory found');
+                return;
+              }
+              
+              const files = fs.readdirSync(diagramsDir)
+                .filter(file => file.endsWith('.png'));
+              
+              if (files.length === 0) {
+                console.log('No PNG files found in diagrams directory');
+                return;
+              }
+              
+              // Convert images to base64
+              const images = files.map(file => {
+                const filePath = path.join(diagramsDir, file);
+                const base64 = fs.readFileSync(filePath, 'base64');
+                return {
+                  name: file.replace('.png', ''),
+                  data: base64
+                };
               });
-            } else {
-              await github.rest.pulls.createReviewComment({
-                owner: context.repo.owner,
-                repo: context.repo.name,
-                pull_number: context.issue.number,
-                body: comment,
-                commit_id: context.payload.pull_request.head.sha,
-                path: ${{ steps.changed-files.outputs.workspace }},
-                position: 1
+              
+              // Create comment content
+              let comment = '### 🎨 Structurizr Diagram Updates\n\n';
+              comment += 'The following diagrams were updated in this PR:\n\n';
+              
+              images.forEach(image => {
+                comment += `#### ${image.name}\n`;
+                comment += `![${image.name}](data:image/png;base64,${image.data})\n\n`;
               });
+              
+              try {
+                // Find existing comments
+                const { data: comments } = await github.rest.issues.listComments({
+                  owner: context.repo.owner,
+                  repo: context.repo.name,
+                  issue_number: context.issue.number
+                });
+                
+                const botComment = comments.find(comment => 
+                  comment.body.includes('🎨 Structurizr Diagram Updates')
+                );
+                
+                if (botComment) {
+                  // Update existing comment
+                  await github.rest.issues.updateComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.name,
+                    comment_id: botComment.id,
+                    body: comment
+                  });
+                  console.log('Updated existing comment');
+                } else {
+                  // Create new comment
+                  await github.rest.issues.createComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.name,
+                    issue_number: context.issue.number,
+                    body: comment
+                  });
+                  console.log('Created new comment');
+                }
+              } catch (error) {
+                console.log('Error handling comments:', error);
+                // If updating/finding comment fails, try to create a new one
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.name,
+                  issue_number: context.issue.number,
+                  body: comment
+                });
+              }
+            } catch (error) {
+              console.log('Error in script execution:', error);
             }
