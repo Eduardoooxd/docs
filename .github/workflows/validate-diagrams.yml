@@ -15,17 +15,21 @@ jobs:
     runs-on: ubuntu-latest
     container: ghcr.io/sebastienfi/structurizr-cli-with-bonus:latest
     permissions:
-      contents: read # Allow to work with the contents of the repository, including git pull.
-      issues: write # Allow to comment on pull requests.
-      pull-requests: write # Allow to list and create pr's comments.
+      contents: read
+      issues: write
+      pull-requests: write
 
     steps:
       - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Get changed DSL files
         id: changed-files
         run: |
-          CHANGED_FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep '\.dsl$' || echo "")
+          git fetch origin ${{ github.base_ref }}
+          CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep '\.dsl$' || echo "")
           echo "DSL files changed: $CHANGED_FILES"
           echo "workspace=$CHANGED_FILES" >> $GITHUB_OUTPUT
 
