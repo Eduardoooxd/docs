@@ -21,17 +21,13 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Get changed DSL files
         id: changed-files
         run: |
-          git fetch origin ${{ github.base_ref }}
-          CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep '\.dsl$' || echo "")
-          echo "DSL files changed: $CHANGED_FILES"
-          echo "workspace=$CHANGED_FILES" >> $GITHUB_OUTPUT
+          FILES=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} | grep '\.dsl$' || echo "")
+          echo "Files changed: $FILES"
+          echo "workspace=$FILES" >> $GITHUB_OUTPUT
 
       - name: Validate DSL
         run: |
@@ -43,4 +39,5 @@ jobs:
       - uses: sebastienfi/structurizr-pr-comment@v1
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
+          workspace-path: ${{ steps.changed-files.outputs.workspace }}
           output-path: "docs/diagrams/"
