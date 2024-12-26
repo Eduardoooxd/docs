@@ -49,40 +49,26 @@ jobs:
             /usr/local/structurizr-cli/structurizr.sh validate -workspace "$file"
           done
 
-      - name: Generate Diagram Images
+      - name: Generate Diagrams
         run: |
           mkdir -p diagrams
           for file in ${{ needs.get-changes.outputs.all_changed_files }}; do
-            echo "Generating diagrams for $file"
-            /usr/local/structurizr-cli/structurizr.sh export -workspace "$file" -format plantuml
+            /usr/local/structurizr-cli/structurizr.sh export -workspace "$file" -format plantuml -output diagrams
           done
-          mv *.puml diagrams/ || true
           cd diagrams
-          echo 'Generating PNGs...'
           plantuml -tpng *.puml
 
-      - name: Upload diagrams as artifacts
-        uses: actions/upload-artifact@v3
+      - name: Upload diagrams to GitHub
+        uses: actions/upload-artifact@v4
         id: upload-artifact
         with:
           name: diagrams
           path: diagrams/*.png
-          retention-days: 7
 
-      - name: Find Previous Comment
-        uses: peter-evans/find-comment@v2
-        id: find-comment
-        with:
-          issue-number: ${{ github.event.pull_request.number }}
-          comment-author: "github-actions[bot]"
-          body-includes: C4 Diagrams
-
-      - name: Comment on PR
+      - name: Update PR Comment
         uses: peter-evans/create-or-update-comment@v3
         with:
           issue-number: ${{ github.event.pull_request.number }}
-          comment-id: ${{ steps.find-comment.outputs.comment-id }}
-          edit-mode: replace
           body: |
             ## 📊 C4 Diagrams Generated
             The following diagrams have been generated and validated:
