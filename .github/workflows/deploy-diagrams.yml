@@ -34,11 +34,18 @@ jobs:
           echo "DSL files changed: $CHANGED_FILES"
           echo "workspace=$CHANGED_FILES" >> $GITHUB_OUTPUT
 
+      - name: Extract workspace name
+        id: workspace-name
+        run: |
+          FILE_PATH="${{ steps.changed-files.outputs.workspace || steps.input-workspace.outputs.workspace }}"
+          WORKSPACE_NAME=$(basename "$FILE_PATH" .dsl)
+          echo "name=$WORKSPACE_NAME" >> $GITHUB_OUTPUT
+
       - name: Push to Structurizr
         run: |
           /usr/local/structurizr-cli/structurizr.sh push \
-            -id ${{ secrets.STRUCTURIZR_WORKSPACE_ID }} \
-            -key ${{ secrets.STRUCTURIZR_API_KEY }} \
-            -secret ${{ secrets.STRUCTURIZR_API_SECRET }} \
+            -id ${{ secrets[format('STRUCTURIZR_WORKSPACE_ID_{0}', steps.workspace-name.outputs.name)] }} \
+            -key ${{ secrets[format('STRUCTURIZR_API_KEY_{0}', steps.workspace-name.outputs.name)] }} \
+            -secret ${{ secrets[format('STRUCTURIZR_API_SECRET_{0}', steps.workspace-name.outputs.name)] }} \
             -url ${{ secrets.STRUCTURIZR_URL }} \
             -workspace ${{ steps.changed-files.outputs.workspace || steps.input-workspace.outputs.workspace }}
