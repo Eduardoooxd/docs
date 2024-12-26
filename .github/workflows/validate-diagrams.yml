@@ -49,52 +49,41 @@ jobs:
             /usr/local/structurizr-cli/structurizr.sh validate -workspace "$file"
           done
 
-      - name: Generate Diagram Images
+      - name: Generate Diagrams
         run: |
           mkdir -p diagrams
-          for file in ${{ needs.get-changes.outputs.all_changed_files }}; do
-            echo "Generating diagrams for $file"
-            /usr/local/structurizr-cli/structurizr.sh export -workspace "$file" -format plantuml
+          for file in ${{ steps.changed-files.outputs.workspace }}; do
+            /usr/local/structurizr-cli/structurizr.sh export -workspace "$file" -format plantuml -output diagrams
           done
-          mv *.puml diagrams/ || true
           cd diagrams
-          echo 'Generating PNGs...'
           plantuml -tpng *.puml
 
-      - name: Find Previous Comment
+      - name: Upload diagrams
+        uses: actions/upload-artifact@v4
+        with:
+          name: diagrams
+          path: diagrams/*.png
+
+      - name: Find Comment
         uses: peter-evans/find-comment@v2
         id: find-comment
         with:
           issue-number: ${{ github.event.pull_request.number }}
           comment-author: "github-actions[bot]"
-          body-includes: C4 Diagrams
+          body-includes: "## C4 Architecture Diagrams"
 
-      - name: Prepare PR Comment Content
-        id: prepare-comment
-        run: |
-          MARKDOWN=""
-          for png in diagrams/*.png; do
-            if [ -f "$png" ]; then
-              filename=$(basename "$png")
-              name="${filename%.*}"
-              # Create a temporary file to store base64 without newlines
-              echo -n "data:image/png;base64," > temp.txt
-              base64 -w 0 "$png" >> temp.txt
-              MARKDOWN="${MARKDOWN}### ${name}\n"
-              MARKDOWN="${MARKDOWN}![${name}]($(cat temp.txt))\n\n"
-              rm temp.txt
-            fi
-          done
-          echo "PNG_FILES_MARKDOWN=${MARKDOWN}" >> $GITHUB_ENV
-
-      - name: Comment on PR
+      - name: Create or Update Comment
         uses: peter-evans/create-or-update-comment@v3
         with:
           issue-number: ${{ github.event.pull_request.number }}
           comment-id: ${{ steps.find-comment.outputs.comment-id }}
           edit-mode: replace
           body: |
-            ## Changes made
-            Commit: ${{ github.event.pull_request.head.sha }}
+            ## C4 Architecture Diagrams
+            Generated from commit: ${{ github.event.pull_request.head.sha }}
 
-            ${{ env.PNG_FILES_MARKDOWN }}
+            <details>
+            <summary>View Diagrams</summary>
+
+            ${{ steps.upload-diagrams.outputs.paths }}
+            </details>
