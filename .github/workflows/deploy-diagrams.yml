@@ -36,8 +36,7 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "matrix={\"file\":[\"${{ github.event.inputs.workspace }}\"]}" >> $GITHUB_OUTPUT
           else
-            FILES="${{ steps.changed-files.outputs.all_changed_files }}"
-            JSON_ARRAY=$(echo $FILES | jq -R 'split(" ")')
+            JSON_ARRAY=$(echo '${{ steps.changed-files.outputs.all_changed_files }}' | jq -R -s 'split(" ")')
             echo "matrix={\"file\":$JSON_ARRAY}" >> $GITHUB_OUTPUT
           fi
 
