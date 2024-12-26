@@ -11,7 +11,24 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  get-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      all_changed_files: ${{ steps.changed-files.outputs.all_changed_files }}
+      any_changed: ${{ steps.changed-files.outputs.any_changed }}
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Get changed DSL files
+        id: changed-files
+        uses: tj-actions/changed-files@v45
+        with:
+          files: |
+            **.dsl
+
   validate:
+    needs: get-changes
+    if: needs.get-changes.outputs.any_changed == 'true'
     runs-on: ubuntu-latest
     container: ghcr.io/sebastienfi/structurizr-cli-with-bonus:latest
     permissions:
@@ -21,24 +38,13 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Git Safe Directory
         run: git config --global --add safe.directory /__w/docs/docs
 
-      - name: Get changed DSL files
-        id: changed-files
+      - name: Validate DSL Files
         run: |
-          git fetch origin ${{ github.base_ref }}
-          CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep '\.dsl$' || echo "")
-          echo "DSL files changed: $CHANGED_FILES"
-          echo "workspace=$CHANGED_FILES" >> $GITHUB_OUTPUT
-
-      - name: Validate DSL
-        run: |
-          for file in ${{ steps.changed-files.outputs.workspace }}; do
+          for file in ${{ needs.get-changes.outputs.all_changed_files }}; do
             echo "Validating $file"
             /usr/local/structurizr-cli/structurizr.sh validate -workspace "$file"
           done
@@ -46,32 +52,14 @@ jobs:
       - name: Generate Diagram Images
         run: |
           mkdir -p diagrams
-          for file in ${{ steps.changed-files.outputs.workspace }}; do
+          for file in ${{ needs.get-changes.outputs.all_changed_files }}; do
             echo "Generating diagrams for $file"
-            /usr/local/structurizr-cli/structurizr.sh export -workspace "$file" -format plantuml -output diagrams
+            /usr/local/structurizr-cli/structurizr.sh export -workspace "$file" -format plantuml
           done
+          mv *.puml diagrams/ || true
           cd diagrams
           echo 'Generating PNGs...'
           plantuml -tpng *.puml
-
-      - name: Prepare PR Comment Content
-        id: prepare-comment
-        run: |
-          {
-            echo 'PNG_FILES_MARKDOWN<<EOF'
-            for png in diagrams/*.png; do
-              if [ -f "$png" ]; then
-                filename=$(basename "$png")
-                name="${filename%.*}"
-                echo "### ${name}"
-                echo "![${name}](data:image/png;base64,$(base64 -w 0 "$png"))"
-                echo
-              fi
-            done
-            echo 'EOF'
-          } >> $GITHUB_ENV
-          echo "PR_NUMBER=${{ github.event.pull_request.number }}" >> $GITHUB_ENV
-          echo "HEAD_SHA=${{ github.event.pull_request.head.sha }}" >> $GITHUB_ENV
 
       - name: Find Previous Comment
         uses: peter-evans/find-comment@v2
@@ -80,6 +68,20 @@ jobs:
           issue-number: ${{ github.event.pull_request.number }}
           comment-author: "github-actions[bot]"
           body-includes: C4 Diagrams
+
+      - name: Prepare PR Comment Content
+        id: prepare-comment
+        run: |
+          MARKDOWN=""
+          for png in diagrams/*.png; do
+            if [ -f "$png" ]; then
+              filename=$(basename "$png")
+              name="${filename%.*}"
+              MARKDOWN="${MARKDOWN}### ${name}\n"
+              MARKDOWN="${MARKDOWN}![${name}]($(base64 -w 0 "$png"))\n\n"
+            fi
+          done
+          echo "PNG_FILES_MARKDOWN=${MARKDOWN}" >> $GITHUB_ENV
 
       - name: Comment on PR
         uses: peter-evans/create-or-update-comment@v3
