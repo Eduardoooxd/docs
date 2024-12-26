@@ -45,8 +45,9 @@ jobs:
       - name: Set workspace from changed files
         id: changed-workspace
         if: github.event_name == 'push'
+        shell: bash
         run: |
-          if [[ "${{ needs.get-changes.outputs.any_changed }}" == "true" ]]; then
+          if [ "${{ needs.get-changes.outputs.any_changed }}" = "true" ]; then
             echo "workspace=${{ needs.get-changes.outputs.changed_files }}" >> $GITHUB_OUTPUT
           else
             echo "No DSL files were changed"
