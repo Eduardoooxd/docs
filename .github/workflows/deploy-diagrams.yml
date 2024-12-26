@@ -19,6 +19,8 @@ jobs:
     container: ghcr.io/sebastienfi/structurizr-cli-with-bonus:latest
     steps:
       - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
 
       - name: Set workspace from input
         id: input-workspace
