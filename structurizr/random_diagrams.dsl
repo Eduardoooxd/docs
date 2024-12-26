@@ -1,4 +1,4 @@
-workspace "candido" "moreira" {
+workspace "Porto" "moreira" {
 
     !identifiers hierarchical
 
