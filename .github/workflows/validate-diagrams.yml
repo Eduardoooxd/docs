@@ -52,7 +52,7 @@ jobs:
       - name: Generate Diagrams
         run: |
           mkdir -p diagrams
-          for file in ${{ steps.changed-files.outputs.workspace }}; do
+          for file in ${{ needs.get-changes.outputs.all_changed_files }}; do
             /usr/local/structurizr-cli/structurizr.sh export -workspace "$file" -format plantuml -output diagrams
           done
           cd diagrams
