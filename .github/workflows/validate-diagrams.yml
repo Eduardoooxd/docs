@@ -57,17 +57,19 @@ jobs:
       - name: Prepare PR Comment Content
         id: prepare-comment
         run: |
-          # Create markdown content for images
-          MARKDOWN=""
-          for png in diagrams/*.png; do
-            if [ -f "$png" ]; then
-              filename=$(basename "$png")
-              name="${filename%.*}"
-              MARKDOWN="${MARKDOWN}### ${name}\n"
-              MARKDOWN="${MARKDOWN}![${name}]($(base64 -w 0 "$png"))\n\n"
-            fi
-          done
-          echo "PNG_FILES_MARKDOWN=${MARKDOWN}" >> $GITHUB_ENV
+          {
+            echo 'PNG_FILES_MARKDOWN<<EOF'
+            for png in diagrams/*.png; do
+              if [ -f "$png" ]; then
+                filename=$(basename "$png")
+                name="${filename%.*}"
+                echo "### ${name}"
+                echo "![${name}](data:image/png;base64,$(base64 -w 0 "$png"))"
+                echo
+              fi
+            done
+            echo 'EOF'
+          } >> $GITHUB_ENV
           echo "PR_NUMBER=${{ github.event.pull_request.number }}" >> $GITHUB_ENV
           echo "HEAD_SHA=${{ github.event.pull_request.head.sha }}" >> $GITHUB_ENV
 
