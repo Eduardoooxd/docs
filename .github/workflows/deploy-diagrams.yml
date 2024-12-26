@@ -62,6 +62,30 @@ jobs:
           WORKSPACE_NAME=$(basename "$FILE_PATH" .dsl)
           echo "name=$WORKSPACE_NAME" >> $GITHUB_OUTPUT
 
+      - name: Check required secrets
+        id: check-secrets
+        if: github.event_name == 'workflow_dispatch' || needs.get-changes.outputs.any_changed == 'true'
+        run: |
+          WORKSPACE="${{ steps.workspace-name.outputs.name }}"
+          MISSING_SECRETS=""
+
+          if [ -z "${{ secrets[format('STRUCTURIZR_WORKSPACE_ID_{0}', steps.workspace-name.outputs.name)] }}" ]; then
+            MISSING_SECRETS="$MISSING_SECRETS STRUCTURIZR_WORKSPACE_ID_$WORKSPACE"
+          fi
+          if [ -z "${{ secrets[format('STRUCTURIZR_API_KEY_{0}', steps.workspace-name.outputs.name)] }}" ]; then
+            MISSING_SECRETS="$MISSING_SECRETS STRUCTURIZR_API_KEY_$WORKSPACE"
+          fi
+          if [ -z "${{ secrets[format('STRUCTURIZR_API_SECRET_{0}', steps.workspace-name.outputs.name)] }}" ]; then
+            MISSING_SECRETS="$MISSING_SECRETS STRUCTURIZR_API_SECRET_$WORKSPACE"
+          fi
+
+          if [ ! -z "$MISSING_SECRETS" ]; then
+            echo "Error: Missing required secrets for workspace $WORKSPACE:"
+            echo "$MISSING_SECRETS"
+            echo "Please create these secrets following the pattern: STRUCTURIZR_<TYPE>_<WORKSPACE_NAME>"
+            exit 1
+          fi
+
       - name: Push to Structurizr
         if: github.event_name == 'workflow_dispatch' || needs.get-changes.outputs.any_changed == 'true'
         run: |
