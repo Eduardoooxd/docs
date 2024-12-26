@@ -58,26 +58,28 @@ jobs:
           cd diagrams
           plantuml -tpng *.puml
 
-      - name: Upload diagrams
+      - name: Upload diagrams to GitHub
         uses: actions/upload-artifact@v4
         with:
           name: diagrams
           path: diagrams/*.png
 
-      - name: Find Comment
-        uses: peter-evans/find-comment@v2
-        id: find-comment
+      - name: Get diagram paths
+        id: diagram-paths
+        run: |
+          cd diagrams
+          echo "paths<<EOF" >> $GITHUB_OUTPUT
+          for file in *.png; do
+            echo "![${file%.*}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts/diagrams/${file})" >> $GITHUB_OUTPUT
+          done
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Update PR Comment
+        uses: peter-evans/create-or-update-comment@v3
         with:
           issue-number: ${{ github.event.pull_request.number }}
-          comment-author: "github-actions[bot]"
-          body-includes: "## C4 Architecture Diagrams"
-
-      - name: Upload to PR Comment
-        uses: thollander/actions-comment-pull-request@v2
-        with:
-          comment_tag: c4diagrams
-          mode: recreate
-          filePath: diagrams/*.png
-          message: |
+          body: |
             ## C4 Architecture Diagrams
             Generated from commit: ${{ github.event.pull_request.head.sha }}
+
+            ${{ steps.diagram-paths.outputs.paths }}
