@@ -3,7 +3,7 @@ workspace "Name3" "Description3" {
     !identifiers hierarchical
 
     model {
-        u = person "User1"
+        u = person "User2"
         ss = softwareSystem "Software System" {
             wa = container "Web Application"
             db = container "Database Schema" {
