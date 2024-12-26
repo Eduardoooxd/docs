@@ -49,33 +49,47 @@ jobs:
             /usr/local/structurizr-cli/structurizr.sh validate -workspace "$file"
           done
 
-      - name: Generate Diagrams
+      - name: Generate Diagram Images
         run: |
           mkdir -p diagrams
           for file in ${{ needs.get-changes.outputs.all_changed_files }}; do
-            /usr/local/structurizr-cli/structurizr.sh export -workspace "$file" -format plantuml -output diagrams
+            echo "Generating diagrams for $file"
+            /usr/local/structurizr-cli/structurizr.sh export -workspace "$file" -format plantuml
           done
+          mv *.puml diagrams/ || true
           cd diagrams
+          echo 'Generating PNGs...'
           plantuml -tpng *.puml
 
-      - name: Convert images to base64
-        id: base64-images
-        run: |
-          echo "markdown<<EOF" >> $GITHUB_OUTPUT
-          for file in diagrams/*.png; do
-            filename=$(basename "$file")
-            echo "### ${filename%.*}" >> $GITHUB_OUTPUT
-            echo "![${filename%.*}](data:image/png;base64,$(base64 -w 0 $file))" >> $GITHUB_OUTPUT
-            echo >> $GITHUB_OUTPUT
-          done
-          echo "EOF" >> $GITHUB_OUTPUT
+      - name: Upload diagrams as artifacts
+        uses: actions/upload-artifact@v3
+        id: upload-artifact
+        with:
+          name: diagrams
+          path: diagrams/*.png
+          retention-days: 7
 
-      - name: Update PR Comment
+      - name: Find Previous Comment
+        uses: peter-evans/find-comment@v2
+        id: find-comment
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-author: "github-actions[bot]"
+          body-includes: C4 Diagrams
+
+      - name: Comment on PR
         uses: peter-evans/create-or-update-comment@v3
         with:
           issue-number: ${{ github.event.pull_request.number }}
+          comment-id: ${{ steps.find-comment.outputs.comment-id }}
+          edit-mode: replace
           body: |
-            ## C4 Architecture Diagrams
-            Generated from commit: ${{ github.event.pull_request.head.sha }}
+            ## 📊 C4 Diagrams Generated
+            The following diagrams have been generated and validated:
 
-            ${{ steps.base64-images.outputs.markdown }}
+            🔍 **Details:**
+            - Commit: `${{ github.event.pull_request.head.sha }}`
+            - Status: ✅ Validation Passed
+
+            📥 **Download:**
+            You can [download the generated diagrams here.](${{ steps.upload-artifact.outputs.artifact-url }})
