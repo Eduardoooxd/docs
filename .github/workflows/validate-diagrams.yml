@@ -77,8 +77,12 @@ jobs:
             if [ -f "$png" ]; then
               filename=$(basename "$png")
               name="${filename%.*}"
+              # Create a temporary file to store base64 without newlines
+              echo -n "data:image/png;base64," > temp.txt
+              base64 -w 0 "$png" >> temp.txt
               MARKDOWN="${MARKDOWN}### ${name}\n"
-              MARKDOWN="${MARKDOWN}![${name}]($(base64 -w 0 "$png"))\n\n"
+              MARKDOWN="${MARKDOWN}![${name}]($(cat temp.txt))\n\n"
+              rm temp.txt
             fi
           done
           echo "PNG_FILES_MARKDOWN=${MARKDOWN}" >> $GITHUB_ENV
@@ -89,12 +93,8 @@ jobs:
           issue-number: ${{ github.event.pull_request.number }}
           comment-id: ${{ steps.find-comment.outputs.comment-id }}
           edit-mode: replace
-          reactions: |
-            heart
-            hooray
           body: |
-            ## C4 Diagrams
+            ## Changes made
             Commit: ${{ github.event.pull_request.head.sha }}
-            Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
             ${{ env.PNG_FILES_MARKDOWN }}
