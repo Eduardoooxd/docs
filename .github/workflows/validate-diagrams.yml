@@ -72,18 +72,12 @@ jobs:
           comment-author: "github-actions[bot]"
           body-includes: "## C4 Architecture Diagrams"
 
-      - name: Create or Update Comment
-        uses: peter-evans/create-or-update-comment@v3
+      - name: Upload to PR Comment
+        uses: thollander/actions-comment-pull-request@v2
         with:
-          issue-number: ${{ github.event.pull_request.number }}
-          comment-id: ${{ steps.find-comment.outputs.comment-id }}
-          edit-mode: replace
-          body: |
+          comment_tag: c4diagrams
+          mode: recreate
+          filePath: diagrams/*.png
+          message: |
             ## C4 Architecture Diagrams
             Generated from commit: ${{ github.event.pull_request.head.sha }}
-
-            <details>
-            <summary>View Diagrams</summary>
-
-            ${{ steps.upload-diagrams.outputs.paths }}
-            </details>
