@@ -1,4 +1,4 @@
-workspace "Name2" "Description3" {
+workspace "Name3" "Description3" {
 
     !identifiers hierarchical
 

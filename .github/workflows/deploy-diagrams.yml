@@ -19,8 +19,6 @@ jobs:
     container: ghcr.io/sebastienfi/structurizr-cli-with-bonus:latest
     steps:
       - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
 
       - name: Set workspace from input
         id: input-workspace
@@ -31,23 +29,36 @@ jobs:
       - name: Get changed DSL files
         id: changed-files
         if: github.event_name == 'push'
+        uses: tj-actions/changed-files@v45
+        with:
+          files: |
+            **.dsl
+
+      - name: Set workspace from changed files
+        id: changed-workspace
+        if: github.event_name == 'push'
         run: |
-          CHANGED_FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep '\.dsl$' || echo "")
-          echo "DSL files changed: $CHANGED_FILES"
-          echo "workspace=$CHANGED_FILES" >> $GITHUB_OUTPUT
+          if [[ "${{ steps.changed-files.outputs.any_changed }}" == "true" ]]; then
+            echo "workspace=${{ steps.changed-files.outputs.all_changed_files }}" >> $GITHUB_OUTPUT
+          else
+            echo "No DSL files were changed"
+            exit 0
+          fi
 
       - name: Extract workspace name
         id: workspace-name
+        if: github.event_name == 'workflow_dispatch' || steps.changed-files.outputs.any_changed == 'true'
         run: |
-          FILE_PATH="${{ steps.changed-files.outputs.workspace || steps.input-workspace.outputs.workspace }}"
+          FILE_PATH="${{ steps.changed-workspace.outputs.workspace || steps.input-workspace.outputs.workspace }}"
           WORKSPACE_NAME=$(basename "$FILE_PATH" .dsl)
           echo "name=$WORKSPACE_NAME" >> $GITHUB_OUTPUT
 
       - name: Push to Structurizr
+        if: github.event_name == 'workflow_dispatch' || steps.changed-files.outputs.any_changed == 'true'
         run: |
           /usr/local/structurizr-cli/structurizr.sh push \
             -id ${{ secrets[format('STRUCTURIZR_WORKSPACE_ID_{0}', steps.workspace-name.outputs.name)] }} \
             -key ${{ secrets[format('STRUCTURIZR_API_KEY_{0}', steps.workspace-name.outputs.name)] }} \
             -secret ${{ secrets[format('STRUCTURIZR_API_SECRET_{0}', steps.workspace-name.outputs.name)] }} \
             -url ${{ secrets.STRUCTURIZR_URL }} \
-            -workspace ${{ steps.changed-files.outputs.workspace || steps.input-workspace.outputs.workspace }}
+            -workspace ${{ steps.changed-workspace.outputs.workspace || steps.input-workspace.outputs.workspace }}
