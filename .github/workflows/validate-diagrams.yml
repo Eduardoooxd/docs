@@ -58,19 +58,15 @@ jobs:
           cd diagrams
           plantuml -tpng *.puml
 
-      - name: Upload diagrams to GitHub
-        uses: actions/upload-artifact@v4
-        with:
-          name: diagrams
-          path: diagrams/*.png
-
-      - name: Get diagram paths
-        id: diagram-paths
+      - name: Convert images to base64
+        id: base64-images
         run: |
-          cd diagrams
-          echo "paths<<EOF" >> $GITHUB_OUTPUT
-          for file in *.png; do
-            echo "![${file%.*}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts/diagrams/${file})" >> $GITHUB_OUTPUT
+          echo "markdown<<EOF" >> $GITHUB_OUTPUT
+          for file in diagrams/*.png; do
+            filename=$(basename "$file")
+            echo "### ${filename%.*}" >> $GITHUB_OUTPUT
+            echo "![${filename%.*}](data:image/png;base64,$(base64 -w 0 $file))" >> $GITHUB_OUTPUT
+            echo >> $GITHUB_OUTPUT
           done
           echo "EOF" >> $GITHUB_OUTPUT
 
@@ -82,4 +78,4 @@ jobs:
             ## C4 Architecture Diagrams
             Generated from commit: ${{ github.event.pull_request.head.sha }}
 
-            ${{ steps.diagram-paths.outputs.paths }}
+            ${{ steps.base64-images.outputs.markdown }}
