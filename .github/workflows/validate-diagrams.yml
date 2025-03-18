@@ -1,64 +1,63 @@
 name: Validate Structurizr DSL
-
 on:
   pull_request:
     paths:
       - "**.dsl"
     types: [opened, synchronize, reopened]
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
-
 jobs:
-  get-changes:
-    runs-on: ubuntu-latest
-    outputs:
-      all_changed_files: ${{ steps.changed-files.outputs.all_changed_files }}
-      any_changed: ${{ steps.changed-files.outputs.any_changed }}
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Get changed DSL files
-        id: changed-files
-        uses: tj-actions/changed-files@v45
-        with:
-          files: |
-            **.dsl
-
   validate:
-    needs: get-changes
-    if: needs.get-changes.outputs.any_changed == 'true'
     runs-on: ubuntu-latest
     container: ghcr.io/sebastienfi/structurizr-cli-with-bonus:latest
     permissions:
       contents: read
       issues: write
       pull-requests: write
-
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Git Safe Directory
         run: git config --global --add safe.directory /__w/docs/docs
 
-      - name: Validate DSL Files
+      - name: Get changed DSL files
+        id: changed-files
         run: |
-          for file in ${{ needs.get-changes.outputs.all_changed_files }}; do
+          # Compare PR changes to base branch
+          BASE_SHA=${{ github.event.pull_request.base.sha }}
+          HEAD_SHA=${{ github.event.pull_request.head.sha }}
+
+          CHANGED_FILES=$(git diff --name-only --diff-filter=ACMRT ${BASE_SHA}..${HEAD_SHA} -- "*.dsl")
+          if [ -n "$CHANGED_FILES" ]; then
+            echo "any_changed=true" >> $GITHUB_OUTPUT
+            echo "all_changed_files=$CHANGED_FILES" >> $GITHUB_OUTPUT
+          else
+            echo "any_changed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Validate DSL Files
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          echo "${{ steps.changed-files.outputs.all_changed_files }}" | while read file; do
             echo "Validating $file"
             /usr/local/structurizr-cli/structurizr.sh validate -workspace "$file"
           done
 
       - name: Generate Diagrams
+        if: steps.changed-files.outputs.any_changed == 'true'
         run: |
           mkdir -p diagrams
-          for file in ${{ needs.get-changes.outputs.all_changed_files }}; do
+          echo "${{ steps.changed-files.outputs.all_changed_files }}" | while read file; do
             /usr/local/structurizr-cli/structurizr.sh export -workspace "$file" -format plantuml -output diagrams
           done
           cd diagrams
           plantuml -tpng *.puml
 
       - name: Upload diagrams to GitHub
+        if: steps.changed-files.outputs.any_changed == 'true'
         uses: actions/upload-artifact@v4
         id: upload-artifact
         with:
@@ -66,16 +65,15 @@ jobs:
           path: diagrams/*.png
 
       - name: Update PR Comment
+        if: steps.changed-files.outputs.any_changed == 'true'
         uses: peter-evans/create-or-update-comment@v3
         with:
           issue-number: ${{ github.event.pull_request.number }}
           body: |
             ## 📊 C4 Diagrams Generated
             The following diagrams have been generated and validated:
-
             🔍 **Details:**
             - Commit: `${{ github.event.pull_request.head.sha }}`
             - Status: ✅ Validation Passed
-
             📥 **Download:**
             You can [download the generated diagrams here.](${{ steps.upload-artifact.outputs.artifact-url }})

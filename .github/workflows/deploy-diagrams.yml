@@ -1,56 +1,52 @@
 name: Deploy Structurizr Diagrams
-
 on:
   push:
     paths:
       - "**.dsl"
     branches:
       - main
-  workflow_dispatch:
-    inputs:
-      workspace:
-        required: true
-        description: "Path of workspace to deploy structurizr/.dsl"
-        type: string
-
 jobs:
-  get-changes:
+  check-changes:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
       any_changed: ${{ steps.changed-files.outputs.any_changed }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Get changed DSL files
         id: changed-files
-        if: github.event_name == 'push'
-        uses: tj-actions/changed-files@v45
-        with:
-          files: |
-            **.dsl
+        run: |
+          BEFORE_SHA=${{ github.event.before }}
+          AFTER_SHA=${{ github.event.head }}
+
+          CHANGED_FILES=$(git diff --name-only --diff-filter=ACMRT ${BEFORE_SHA}..${AFTER_SHA} -- "*.dsl")
+
+          if [ -n "$CHANGED_FILES" ]; then
+            echo "any_changed=true" >> $GITHUB_OUTPUT
+            echo "all_changed_files=$CHANGED_FILES" >> $GITHUB_OUTPUT
+          else
+            echo "any_changed=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Set matrix
         id: set-matrix
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "matrix={\"file\":[\"${{ github.event.inputs.workspace }}\"]}" >> $GITHUB_OUTPUT
-          else
-            FILES_JSON=$(echo '${{ steps.changed-files.outputs.all_changed_files }}' | tr ' ' '\n' | jq -R -s -c 'split("\n") | map(select(length > 0))')
-            echo "matrix={\"file\":$FILES_JSON}" >> $GITHUB_OUTPUT
-          fi
+          FILES_JSON=$(echo '${{ steps.changed-files.outputs.all_changed_files }}' | tr ' ' '\n' | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          echo "matrix={\"file\":$FILES_JSON}" >> $GITHUB_OUTPUT
 
   deploy:
-    needs: get-changes
-    if: github.event_name == 'workflow_dispatch' || needs.get-changes.outputs.any_changed == 'true'
+    needs: check-changes
+    if: needs.check-changes.outputs.any_changed == 'true'
     runs-on: ubuntu-latest
     container: ghcr.io/sebastienfi/structurizr-cli-with-bonus:latest
     strategy:
-      matrix: ${{fromJson(needs.get-changes.outputs.matrix)}}
+      matrix: ${{fromJson(needs.check-changes.outputs.matrix)}}
       fail-fast: false
-
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Extract workspace name
         id: workspace-name
@@ -59,34 +55,11 @@ jobs:
           WORKSPACE_NAME=$(basename "$FILE_PATH" .dsl)
           echo "name=$WORKSPACE_NAME" >> $GITHUB_OUTPUT
 
-      - name: Check required secrets
-        id: check-secrets
-        run: |
-          WORKSPACE="${{ steps.workspace-name.outputs.name }}"
-          MISSING_SECRETS=""
-
-          if [ -z "${{ secrets[format('STRUCTURIZR_WORKSPACE_ID_{0}', steps.workspace-name.outputs.name)] }}" ]; then
-            MISSING_SECRETS="$MISSING_SECRETS STRUCTURIZR_WORKSPACE_ID_$WORKSPACE"
-          fi
-          if [ -z "${{ secrets[format('STRUCTURIZR_API_KEY_{0}', steps.workspace-name.outputs.name)] }}" ]; then
-            MISSING_SECRETS="$MISSING_SECRETS STRUCTURIZR_API_KEY_$WORKSPACE"
-          fi
-          if [ -z "${{ secrets[format('STRUCTURIZR_API_SECRET_{0}', steps.workspace-name.outputs.name)] }}" ]; then
-            MISSING_SECRETS="$MISSING_SECRETS STRUCTURIZR_API_SECRET_$WORKSPACE"
-          fi
-
-          if [ ! -z "$MISSING_SECRETS" ]; then
-            echo "Error: Missing required secrets for workspace $WORKSPACE:"
-            echo "$MISSING_SECRETS"
-            echo "Please create these secrets following the pattern: STRUCTURIZR_<TYPE>_<WORKSPACE_NAME>"
-            exit 1
-          fi
-
       - name: Push to Structurizr
         run: |
           /usr/local/structurizr-cli/structurizr.sh push \
-            -id ${{ secrets[format('STRUCTURIZR_WORKSPACE_ID_{0}', steps.workspace-name.outputs.name)] }} \
-            -key ${{ secrets[format('STRUCTURIZR_API_KEY_{0}', steps.workspace-name.outputs.name)] }} \
-            -secret ${{ secrets[format('STRUCTURIZR_API_SECRET_{0}', steps.workspace-name.outputs.name)] }} \
-            -url ${{ secrets.STRUCTURIZR_URL }} \
-            -workspace ${{ matrix.file }}
+          -id ${{ secrets[format('STRUCTURIZR_WORKSPACE_ID_{0}', steps.workspace-name.outputs.name)] }} \
+          -key ${{ secrets[format('STRUCTURIZR_API_KEY_{0}', steps.workspace-name.outputs.name)] }} \
+          -secret ${{ secrets[format('STRUCTURIZR_API_SECRET_{0}', steps.workspace-name.outputs.name)] }} \
+          -url ${{ secrets.STRUCTURIZR_URL }} \
+          -workspace ${{ matrix.file }}
